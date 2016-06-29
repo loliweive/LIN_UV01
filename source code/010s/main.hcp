@@ -1,0 +1,27 @@
+[Project]
+Project=HC-ICE
+[File Count]
+Count=2
+[Project Files]
+File0=HC18P010S.INC
+File1=MAIN.ASM
+[Settings]
+Device=HC18P010A
+ConfigBitValue0=1
+ConfigBitValue1=68
+ConfigBitValue2=246
+Output=.
+PostBuild=0
+PostBuildCommand=
+[Files]
+File0=MAIN.ASM|3 25 474 25 474
+OpenFileCounts=1
+File1=G:\Õý½øÐÐ\LIN\1\010S\MAIN.ASM|1 0 928 0 445
+[Break]
+Count=0
+[Watch0]
+Count=0
+[Watch1]
+Count=0
+[Watch2]
+Count=0

@@ -1,0 +1,370 @@
+;This code is de'assemblered by HOLYCHIP shanghai Ltd.. 
+;Soft version 1.02
+;Thanks for using, find any bug, please report it to HC!
+
+	list p = HC18P010S, R=DEC
+	#include "HC18P010s.inc"		
+
+          DATA	
+;;CONST          
+#Define PORTA_INI	b'00000000'	; PORTA端口初值 
+#Define PORTB_INI	b'00000000'	; PORTB端口初值  
+
+#Define TRISA_INI	b'00000000'	; PORTA方向初值  0 输出 1输入
+#Define TRISB_INI	b'00001010'	; PORTB方向初值
+
+#Define WPUB_INI	b'11111101'	; 上拉 0 使能 1禁止
+#Define WPD_INI		b'11111111'	; 下拉 0 使能 1禁止 
+
+#Define	OPTION_INI	b'10000000'	; X 上升沿下降沿 T0时钟源 T0计数沿选择 分频器派送 T0预分频1:2
+#DEFINE T0_INI	        142		;156+1	4M/4T 240US	  
+
+#DEFINE	PCON_INI	B'10111000'     ;WDT使能   外部int禁止	        
+#DEFINE	IOCB_INI	B'00000000'     ;PB 中断和唤醒 0 禁止
+
+#DEFINE	INTCON_INI	B'10100000'     ;B0=1，TM0中断使能   外部int禁止	 
+
+;;;;;IO口定义
+#DEFINE	PIN_BUZZER	PORTB,4
+#DEFINE	PIN_OUTPUT	PORTB,2
+#DEFINE	PIN_KEY		PORTB,1
+
+;---------------------------------------------------
+
+
+#Define C_RAM_START		0x20
+#Define C_RAM_END		0x50
+
+;;;;;;;RAM START HERE,优先使用20~3F的空间
+
+CNT_DIDA_TIME_L		EQU	0X20
+CNT_DIDA_TIME_H		EQU	0X21
+
+SECOND			EQU	0X22
+COUNT_240US		EQU	0X23
+FLAG_BYTE		EQU	0X24
+#DEFINE		F_DIDA_B	FLAG_BYTE,0
+#DEFINE		F_4MS8_B	FLAG_BYTE,1
+#DEFINE		F_SLEEP_B	FLAG_BYTE,2
+#DEFINE		F_STATUS_ON_B	FLAG_BYTE,3
+#DEFINE		F_KEYLOCK_B	FLAG_BYTE,4
+#DEFINE		F_TWOBUZZER_B	FLAG_BYTE,5
+CNT_4MS8		EQU	0X25
+CNT_KEY_L		EQU	0X26
+CNT_KEY_H		EQU	0X27
+CNT_BUZZER		EQU	0X28
+
+PCLATH_TEMP	    	EQU       0X3D 
+STATUS_TEMP     	EQU       0X3E
+W_TEMP          	EQU       0X3F        
+;;;;;RAM ENDS HERE
+
+
+;********************************************
+;               CODE START                  
+;********************************************
+        CODE
+
+        ORG     0000H	
+        GOTO    RESET  
+        GOTO    RESET   
+	GOTO    RESET   
+        GOTO    RESET        
+                
+        ORG     0004H  						
+INTPROGRAM:		
+
+	MOVWF	W_TEMP
+	SWAPF	W_TEMP,F	; SAVE W
+	SWAPF	STATUS,W
+	MOVWF	STATUS_TEMP	; SAVE STATUS
+     
+	BTFSS	T0IF		;240us
+	GOTO	INT_EXIT
+	BCF	T0IF
+	
+	MOVLW	T0_INI
+	MOVWF	T0
+	
+INT_PWM_OUTPUT:
+
+	BTFSS	F_DIDA_B
+	GOTO	INT_PWM_OUTPUT_END
+	MOVLW	B'00010000'
+	XORWF	PORTB,F
+	DECFSZ	CNT_DIDA_TIME_L,F
+	GOTO	INT_PWM_OUTPUT_END
+	MOVF	CNT_DIDA_TIME_H,W
+	BTFSS	Z
+	GOTO	LABLE1
+	BCF	F_DIDA_B
+	DECFSZ	SECOND,W
+	GOTO	$+5
+	MOVLW	D'8'
+	MOVWF	CNT_DIDA_TIME_H
+	MOVLW	D'166'
+	MOVWF	CNT_DIDA_TIME_L	
+	MOVF	SECOND,W
+	BTFSC	Z
+	GOTO	INT_PWM_LONG
+	DECF	SECOND,F
+	MOVLW	D'166'
+	MOVWF	CNT_DIDA_TIME_L
+	GOTO	INT_PWM_OUTPUT_END
+	
+INT_PWM_LONG:	
+	
+	MOVLW	D'8'
+	MOVWF	CNT_DIDA_TIME_H
+	MOVLW	D'166'
+	MOVWF	CNT_DIDA_TIME_L
+	DECFSZ	CNT_BUZZER,F
+	GOTO	INT_PWM_OUTPUT_END
+	BSF	F_SLEEP_B
+	BCF	F_STATUS_ON_B
+	GOTO	INT_PWM_OUTPUT_END
+LABLE1:
+	DECF	CNT_DIDA_TIME_H,F
+	MOVLW	D'166'
+	MOVWF	CNT_DIDA_TIME_L
+	
+INT_PWM_OUTPUT_END:	
+TIMEFLAG:
+	
+	INCF	COUNT_240US,F
+	MOVLW	D'20'
+	SUBWF	COUNT_240US,W
+	BTFSS	C
+	GOTO	INT_EXIT
+	CLRF	COUNT_240US
+	BSF	F_4MS8_B	
+	
+INT_EXIT:
+    							
+	SWAPF	STATUS_TEMP, W
+	MOVWF	STATUS				;恢复STATUS
+        SWAPF	W_TEMP, W			;恢复W		
+	RETFIE				
+
+;***************************************  	   
+RESET:   
+        CLRF    INTCON
+	CLRF	PCON    
+ 	CLRWDT
+;***************************************   
+
+PORT_INI:
+
+	MOVLW	PORTA_INI
+	MOVWF	PORTA
+		
+	MOVLW	TRISA_INI
+	MOVWF	TRISA
+		
+	MOVLW	PORTB_INI
+	MOVWF	PORTB
+
+	MOVLW	TRISB_INI
+	MOVWF	TRISB
+	
+	MOVLW	WPUB_INI
+	MOVWF	WPUB	
+
+	MOVLW	WPD_INI
+	MOVWF	WPD
+	
+	MOVLW	IOCB_INI
+	MOVWF	IOCB	
+
+;***************************************      
+;IO
+
+;***************************************	
+;***************************************	
+;CLRF RAM 自加
+;#Define C_RAM_START		0x10
+;#Define C_RAM_END		0xC0
+	
+	MOVLW	C_RAM_START
+	MOVWF	FSR
+	
+_INI_RAM_Loop:
+
+	CLRF	INDF
+	INCF	FSR, F
+
+        MOVF    FSR,W
+	XORLW	C_RAM_END 
+	BTFSS	Z         
+	GOTO	_INI_RAM_Loop 
+	
+;***************************************	
+
+MAIN_INI0:
+
+	MOVLW	OPTION_INI		 
+	MOVWF	OPTION
+
+	MOVLW	T0_INI
+        MOVWF   T0
+
+	BCF	T0IF
+	
+	MOVLW	PCON_INI
+	MOVWF	PCON
+	
+	MOVLW   INTCON_INI
+	MOVWF   INTCON
+	
+	BSF	F_SLEEP_B
+	
+;===================================
+;;;;;主循环
+;===================================
+MAINLOOP:
+
+	CLRWDT	         
+	BTFSS	F_4MS8_B
+	GOTO	MAINLOOP
+	BCF	F_4MS8_B
+	CALL	TIMER_PROCESS
+	CALL	KEY_PROCESS	
+	CALL	SLEEP_PROCESS
+	GOTO	MAINLOOP
+	
+TIMER_PROCESS:
+
+	BTFSS	F_STATUS_ON_B
+	GOTO	TIMER_PROCESS_END
+	INCF	CNT_4MS8,F
+	MOVLW	D'208'		;1S
+	XORWF	CNT_4MS8,W
+	BTFSS	Z
+	GOTO	TIMER_PROCESS_END
+	CLRF	CNT_4MS8
+	BSF	F_DIDA_B
+	MOVF	SECOND,W
+	BTFSC	Z
+	BCF	PIN_OUTPUT
+	
+TIMER_PROCESS_END:
+	
+	RETURN
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;	
+KEY_PROCESS:
+
+	BTFSS	PIN_KEY
+	GOTO	KEY_PROCESS_L
+KEY_PROCESS_H:
+
+	INCF	CNT_KEY_H,F
+	CLRF	CNT_KEY_L
+	MOVLW	D'10'
+	XORWF	CNT_KEY_H,W
+	BTFSS	Z
+	GOTO	KEY_PROCESS_END
+	CLRF	CNT_KEY_H
+	BCF	F_KEYLOCK_B
+	BTFSS	F_STATUS_ON_B
+	BSF	F_SLEEP_B
+	GOTO	KEY_PROCESS_END
+	
+KEY_PROCESS_L:
+
+	INCF	CNT_KEY_L,F
+	CLRF	CNT_KEY_H
+	MOVLW	D'10'
+	XORWF	CNT_KEY_L,W
+	BTFSS	Z
+	GOTO	KEY_PROCESS_END
+	CLRF	CNT_KEY_L
+	BTFSC	F_KEYLOCK_B
+	GOTO	KEY_PROCESS_END
+	BSF	F_KEYLOCK_B		;按键有效
+	BTFSS	F_STATUS_ON_B
+	GOTO	KEY_PROCESS_ON
+KEY_PROCESS_OFF:
+
+	CLRF	CNT_4MS8
+	BSF	F_DIDA_B
+	CLRF	COUNT_240US
+	CLRF	SECOND
+	BCF	PIN_OUTPUT
+;	DECF	CNT_BUZZER,F
+	MOVLW	D'166'
+	MOVWF	CNT_DIDA_TIME_L
+	MOVLW	D'8'
+	MOVWF	CNT_DIDA_TIME_H
+	GOTO	KEY_PROCESS_END
+	
+KEY_PROCESS_ON:
+
+	BSF	F_STATUS_ON_B
+	MOVLW	D'89'
+	MOVWF	SECOND
+	GOTO	KEY_PROCESS_END
+	
+KEY_PROCESS_END:
+
+	RETURN
+;--------------------------------------------
+
+SLEEP_PROCESS:
+
+	BTFSS	F_KEYLOCK_B
+	BTFSS	F_SLEEP_B
+	GOTO	SLEEP_PROCESS_END
+	BCF	F_SLEEP_B	
+	BCF	PIN_OUTPUT
+	CLRF	CNT_4MS8
+	BCF	PIN_BUZZER
+	BCF	F_TWOBUZZER_B
+	CLRWDT
+	BCF	WDTENS		;WDTEN
+	BCF	GIE
+	
+	MOVLW	B'00000010'
+	MOVWF	IOCB
+	MOVF	PORTB,W
+	BCF	RBIF		;PBIF
+	BSF	RBIE
+	NOP
+	NOP
+	NOP
+	NOP
+	SLEEP
+	NOP
+	NOP
+	NOP
+	NOP
+	CLRWDT
+	BSF	F_STATUS_ON_B
+	MOVLW	D'89'
+	MOVWF	SECOND
+	BSF	PIN_OUTPUT
+	BSF	F_KEYLOCK_B
+	MOVLW	D'2'
+	MOVWF	CNT_BUZZER
+	CLRF	CNT_DIDA_TIME_H
+	MOVLW	D'166'
+	MOVWF	CNT_DIDA_TIME_L
+	CLRF	IOCB
+	BCF	RBIE
+	BCF	RBIF		;PBIF
+	BSF	WDTENS		;WDTEN
+	BSF	GIE	
+SLEEP_PROCESS_END:
+
+	RETURN
+
+;********************************************
+        ORG     03FFH                   ;       
+        GOTO    RESET                           
+        END
+
+
+;********************************************
+;               CODE END                    
+;********************************************
+
